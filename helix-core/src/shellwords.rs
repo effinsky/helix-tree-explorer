@@ -129,9 +129,8 @@ impl<'a> From<&'a str> for Shellwords<'a> {
                 DquoteEscaped => Dquoted,
             };
 
-            let c_len = c.len_utf8();
-            if i == input.len() - c_len && end == 0 {
-                end = i + c_len;
+            if i >= input.len() - 1 && end == 0 {
+                end = i + 1;
             }
 
             if end > 0 {
@@ -333,18 +332,5 @@ mod test {
     fn test_parts() {
         assert_eq!(Shellwords::from(":o a").parts(), &[":o", "a"]);
         assert_eq!(Shellwords::from(":o a\\ ").parts(), &[":o", "a\\"]);
-    }
-
-    #[test]
-    fn test_multibyte_at_end() {
-        assert_eq!(Shellwords::from("𒀀").parts(), &["𒀀"]);
-        assert_eq!(
-            Shellwords::from(":sh echo 𒀀").parts(),
-            &[":sh", "echo", "𒀀"]
-        );
-        assert_eq!(
-            Shellwords::from(":sh echo 𒀀 hello world𒀀").parts(),
-            &[":sh", "echo", "𒀀", "hello", "world𒀀"]
-        );
     }
 }

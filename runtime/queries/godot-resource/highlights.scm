@@ -26,4 +26,3 @@
 "=" @operator
 
 (ERROR) @error
-(comment) @comment

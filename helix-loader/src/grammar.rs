@@ -67,9 +67,8 @@ pub fn get_language(name: &str) -> Result<Language> {
 #[cfg(not(target_arch = "wasm32"))]
 pub fn get_language(name: &str) -> Result<Language> {
     use libloading::{Library, Symbol};
-    let mut rel_library_path = PathBuf::new().join("grammars").join(name);
-    rel_library_path.set_extension(DYLIB_EXTENSION);
-    let library_path = crate::runtime_file(&rel_library_path);
+    let mut library_path = crate::runtime_dir().join("grammars").join(name);
+    library_path.set_extension(DYLIB_EXTENSION);
 
     let library = unsafe { Library::new(&library_path) }
         .with_context(|| format!("Error opening dynamic library {:?}", library_path))?;
@@ -253,9 +252,7 @@ fn fetch_grammar(grammar: GrammarConfiguration) -> Result<FetchStatus> {
         remote, revision, ..
     } = grammar.source
     {
-        let grammar_dir = crate::runtime_dirs()
-            .first()
-            .expect("No runtime directories provided") // guaranteed by post-condition
+        let grammar_dir = crate::runtime_dir()
             .join("grammars")
             .join("sources")
             .join(&grammar.grammar_id);
@@ -353,9 +350,7 @@ fn build_grammar(grammar: GrammarConfiguration, target: Option<&str>) -> Result<
     let grammar_dir = if let GrammarSource::Local { path } = &grammar.source {
         PathBuf::from(&path)
     } else {
-        crate::runtime_dirs()
-            .first()
-            .expect("No runtime directories provided") // guaranteed by post-condition
+        crate::runtime_dir()
             .join("grammars")
             .join("sources")
             .join(&grammar.grammar_id)
@@ -406,10 +401,7 @@ fn build_tree_sitter_library(
             None
         }
     };
-    let parser_lib_path = crate::runtime_dirs()
-        .first()
-        .expect("No runtime directories provided") // guaranteed by post-condition
-        .join("grammars");
+    let parser_lib_path = crate::runtime_dir().join("grammars");
     let mut library_path = parser_lib_path.join(&grammar.grammar_id);
     library_path.set_extension(DYLIB_EXTENSION);
 
@@ -519,6 +511,9 @@ fn mtime(path: &Path) -> Result<SystemTime> {
 /// Gives the contents of a file from a language's `runtime/queries/<lang>`
 /// directory
 pub fn load_runtime_file(language: &str, filename: &str) -> Result<String, std::io::Error> {
-    let path = crate::runtime_file(&PathBuf::new().join("queries").join(language).join(filename));
-    std::fs::read_to_string(path)
+    let path = crate::RUNTIME_DIR
+        .join("queries")
+        .join(language)
+        .join(filename);
+    std::fs::read_to_string(&path)
 }

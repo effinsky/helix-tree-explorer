@@ -30,7 +30,6 @@
 "markup.raw.inline" = { fg = "green" }
 "markup.bold" = { fg = "gold", modifiers = ["bold"] }
 "markup.italic" = { fg = "purple", modifiers = ["italic"] }
-"markup.strikethrough" = { modifiers = ["crossed_out"] }
 "markup.list" = { fg = "red" }
 "markup.quote" = { fg = "yellow" }
 "markup.link.url" = { fg = "cyan", modifiers = ["underlined"]}
@@ -59,12 +58,9 @@
 "ui.cursor.primary" = { fg = "white", modifiers = ["reversed"] }
 "ui.cursor.match" = { fg = "blue", modifiers = ["underlined"]}
 
-"ui.selection" = { bg = "faint-gray" }
+"ui.selection" = { bg = "light-gray" }
 "ui.selection.primary" = { bg = "gray" }
 "ui.cursorline.primary" = { bg = "light-black" }
-
-"ui.highlight" = { bg = "gray" }
-"ui.highlight.frameline" = { bg = "#97202a" }
 
 "ui.linenr" = { fg = "linenr" }
 "ui.linenr.selected" = { fg = "white" }
@@ -84,8 +80,6 @@
 "ui.menu" = { fg = "white", bg = "gray" }
 "ui.menu.selected" = { fg = "black", bg = "blue" }
 "ui.menu.scroll" = { fg = "white", bg = "light-gray" }
-
-"ui.debug" = { fg = "red" }
 
 [palette]
 

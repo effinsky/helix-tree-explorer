@@ -33,26 +33,6 @@
 (type_definition
   name: (type_identifier) @type)
 
-(full_enum_case
-  name: (identifier) @type)
-
-(simple_enum_case
-  name: (identifier) @type)
-
-;; val/var definitions/declarations
-
-(val_definition
-  pattern: (identifier) @variable)
-
-(var_definition
-  pattern: (identifier) @variable)
-
-(val_declaration
-  name: (identifier) @variable)
-
-(var_declaration
-  name: (identifier) @variable)
-
 ; method definition
 
 (class_definition
@@ -68,7 +48,7 @@
     (function_definition
       name: (identifier) @function.method)))
 
-; imports/exports
+; imports
 
 (import_declaration
   path: (identifier) @namespace)
@@ -78,15 +58,7 @@
   path: (identifier) @type) (#match? @type "^[A-Z]"))
 ((stable_identifier (identifier) @type) (#match? @type "^[A-Z]"))
 
-(export_declaration
-  path: (identifier) @namespace)
-((stable_identifier (identifier) @namespace))
-
-((export_declaration
-  path: (identifier) @type) (#match? @type "^[A-Z]"))
-((stable_identifier (identifier) @type) (#match? @type "^[A-Z]"))
-
-((namespace_selectors (identifier) @type) (#match? @type "^[A-Z]"))
+((import_selectors (identifier) @type) (#match? @type "^[A-Z]"))
 
 ; method invocation
 
@@ -95,15 +67,8 @@
   function: (identifier) @function)
 
 (call_expression
-  function: (operator_identifier) @function)
-
-(call_expression
   function: (field_expression
     field: (identifier) @function.method))
-
-(call_expression
-  function: (field_expression
-    field: (operator_identifier) @function.method))
 
 ((call_expression
    function: (identifier) @variable.other.member)
@@ -111,9 +76,6 @@
 
 (generic_function
   function: (identifier) @function)
-
-(interpolated_string_expression
-  interpolator: (identifier) @function)
 
 (
   (identifier) @function.builtin
@@ -125,13 +87,7 @@
 (function_definition
   name: (identifier) @function)
 
-(function_definition
-  name: (operator_identifier) @function)
-
 (parameter
-  name: (identifier) @variable.parameter)
-
-(binding
   name: (identifier) @variable.parameter)
 
 ; expressions
@@ -153,7 +109,7 @@
 
 
 (symbol_literal) @string.special.symbol
-
+ 
 [
 (string)
 (character_literal)
@@ -162,50 +118,29 @@
 
 (interpolation "$" @punctuation.special)
 
-; annotations
-
-(annotation) @attribute
-
 ;; keywords
 
-;; storage in TextMate scope lingo means field or type
 [
-  (opaque_modifier)
-  (infix_modifier)
-  (transparent_modifier)
-  (open_modifier)
   "abstract"
+  "case"
+  "class"
+  "extends"
   "final"
+  "finally"
+;; `forSome` existential types not implemented yet
   "implicit"
   "lazy"
+;; `macro` not implemented yet
+  "object"
   "override"
+  "package"
   "private"
   "protected"
   "sealed"
-] @keyword.storage.modifier
-
-[
-  "class"
-  "enum"
-  "extension"
-  "given"
-  "object"
-  "package"
   "trait"
   "type"
   "val"
   "var"
-] @keyword.storage.type
-
-[
-  "as"
-  "derives"
-  "end"
-  "extends"
-;; `forSome` existential types not implemented yet
-;; `macro` not implemented yet
-;; `throws`
-  "using"
   "with"
 ] @keyword
 
@@ -217,36 +152,33 @@
 "new" @keyword.operator
 
 [
-  "case"
-  "catch"
-  "else"
-  "finally"
-  "if"
-  "match"
-  "then"
-  "throw"
-  "try"
+ "else"
+ "if"
+ "match"
+ "try"
+ "catch"
+ "throw"
 ] @keyword.control.conditional
 
 [
-  "("
-  ")"
-  "["
-  "]"
-  "{"
-  "}"
+ "("
+ ")"
+ "["
+ "]"
+ "{"
+ "}"
 ] @punctuation.bracket
 
 [
-  "."
-  ","
+ "."
+ ","
 ] @punctuation.delimiter
 
 [
-  "do"
-  "for"
-  "while"
-  "yield"
+ "do"
+ "for"
+ "while"
+ "yield"
 ] @keyword.control.repeat
 
 "def" @keyword.function
@@ -259,8 +191,6 @@
 
 "import" @keyword.control.import
 
-"export" @keyword.control.import
-
 "return" @keyword.control.return
 
 (comment) @comment
@@ -271,5 +201,3 @@
   (case_clause ("case") @keyword.control.conditional))
 
 (identifier) @variable
-
-(operator_identifier) @operator

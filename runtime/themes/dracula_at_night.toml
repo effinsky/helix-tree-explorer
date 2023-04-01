@@ -25,8 +25,6 @@
 "ui.cursor.match" = { fg = "green", modifiers = ["underlined"] }
 "ui.cursor.primary" = { fg = "background", bg = "cyan", modifiers = ["dim"] }
 "ui.help" = { fg = "foreground", bg = "background_dark" }
-"ui.debug" = { fg = "red" }
-"ui.highlight.frameline" = { fg = "black", bg = "red" }
 "ui.linenr" = { fg = "comment" }
 "ui.linenr.selected" = { fg = "foreground" }
 "ui.menu" = { fg = "foreground", bg = "background_dark" }
@@ -52,7 +50,6 @@
 "markup.list" = "cyan"
 "markup.bold" = { fg = "orange", modifiers = ["bold"] }
 "markup.italic" = { fg = "yellow", modifiers = ["italic"] }
-"markup.strikethrough" = { modifiers = ["crossed_out"] }
 "markup.link.url" = "cyan"
 "markup.link.text" = "pink"
 "markup.quote" = { fg = "yellow", modifiers = ["italic"] }

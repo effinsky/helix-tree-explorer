@@ -231,20 +231,8 @@ fn textobject_pair_surround_impl(
     };
     pair_pos
         .map(|(anchor, head)| match textobject {
-            TextObject::Inside => {
-                if anchor < head {
-                    Range::new(next_grapheme_boundary(slice, anchor), head)
-                } else {
-                    Range::new(anchor, next_grapheme_boundary(slice, head))
-                }
-            }
-            TextObject::Around => {
-                if anchor < head {
-                    Range::new(anchor, next_grapheme_boundary(slice, head))
-                } else {
-                    Range::new(next_grapheme_boundary(slice, anchor), head)
-                }
-            }
+            TextObject::Inside => Range::new(next_grapheme_boundary(slice, anchor), head),
+            TextObject::Around => Range::new(anchor, next_grapheme_boundary(slice, head)),
             TextObject::Movement => unreachable!(),
         })
         .unwrap_or(range)
@@ -437,7 +425,7 @@ mod test {
             let text = Rope::from(s.as_str());
             let selection = selection
                 .transform(|r| textobject_paragraph(text.slice(..), r, TextObject::Inside, 1));
-            let actual = crate::test::plain(s.as_ref(), &selection);
+            let actual = crate::test::plain(&s, selection);
             assert_eq!(actual, expected, "\nbefore: `{:?}`", before);
         }
     }
@@ -460,7 +448,7 @@ mod test {
             let text = Rope::from(s.as_str());
             let selection = selection
                 .transform(|r| textobject_paragraph(text.slice(..), r, TextObject::Inside, 2));
-            let actual = crate::test::plain(s.as_ref(), &selection);
+            let actual = crate::test::plain(&s, selection);
             assert_eq!(actual, expected, "\nbefore: `{:?}`", before);
         }
     }
@@ -491,7 +479,7 @@ mod test {
             let text = Rope::from(s.as_str());
             let selection = selection
                 .transform(|r| textobject_paragraph(text.slice(..), r, TextObject::Around, 1));
-            let actual = crate::test::plain(s.as_ref(), &selection);
+            let actual = crate::test::plain(&s, selection);
             assert_eq!(actual, expected, "\nbefore: `{:?}`", before);
         }
     }

@@ -26,9 +26,3 @@
     prefix: (identifier) @function.macro) @injection.content
   (#eq? @function.macro "re")
   (#set! injection.language "regex"))
-
-(
-  (prefixed_string_literal
-    prefix: (identifier) @function.macro) @injection.content
-  (#eq? @function.macro "md")
-  (#set! injection.language "markdown"))

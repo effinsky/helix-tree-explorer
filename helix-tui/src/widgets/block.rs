@@ -7,9 +7,8 @@ use crate::{
 use helix_view::graphics::{Rect, Style};
 
 /// Border render type. Defaults to [`BorderType::Plain`].
-#[derive(Debug, Default, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum BorderType {
-    #[default]
     Plain,
     Rounded,
     Double,
@@ -24,6 +23,12 @@ impl BorderType {
             Self::Double => line::DOUBLE,
             Self::Thick => line::THICK,
         }
+    }
+}
+
+impl Default for BorderType {
+    fn default() -> BorderType {
+        BorderType::Plain
     }
 }
 

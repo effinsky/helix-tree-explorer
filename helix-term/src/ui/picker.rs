@@ -1,38 +1,28 @@
 use crate::{
-    alt,
     compositor::{Component, Compositor, Context, Event, EventResult},
     ctrl, key, shift,
-    ui::{
-        self,
-        document::{render_document, LineDecoration, LinePos, TextRenderer},
-        fuzzy_match::FuzzyQuery,
-        EditorView,
-    },
+    ui::{self, fuzzy_match::FuzzyQuery, EditorView},
 };
 use futures_util::future::BoxFuture;
 use tui::{
     buffer::Buffer as Surface,
-    layout::Constraint,
-    text::{Span, Spans},
-    widgets::{Block, BorderType, Borders, Cell, Table},
+    widgets::{Block, BorderType, Borders},
 };
 
 use fuzzy_matcher::skim::SkimMatcherV2 as Matcher;
 use tui::widgets::Widget;
 
-use std::cmp::{self, Ordering};
+use std::{
+    cmp::{self, Ordering},
+    time::Instant,
+};
 use std::{collections::HashMap, io::Read, path::PathBuf};
 
 use crate::ui::{Prompt, PromptEvent};
-use helix_core::{
-    movement::Direction, text_annotations::TextAnnotations,
-    unicode::segmentation::UnicodeSegmentation, Position,
-};
+use helix_core::{movement::Direction, Position};
 use helix_view::{
     editor::Action,
     graphics::{CursorKind, Margin, Modifier, Rect},
-    theme::Style,
-    view::ViewPosition,
     Document, DocumentId, Editor,
 };
 
@@ -70,8 +60,6 @@ impl From<DocumentId> for PathOrId {
     }
 }
 
-type FileCallback<T> = Box<dyn Fn(&Editor, &T) -> Option<FileLocation>>;
-
 /// File path and range of lines (used to align and highlight lines)
 pub type FileLocation = (PathOrId, Option<(usize, usize)>);
 
@@ -82,7 +70,7 @@ pub struct FilePicker<T: Item> {
     preview_cache: HashMap<PathBuf, CachedPreview>,
     read_buffer: Vec<u8>,
     /// Given an item in the picker, return the file path and line number to display.
-    file_fn: FileCallback<T>,
+    file_fn: Box<dyn Fn(&Editor, &T) -> Option<FileLocation>>,
 }
 
 pub enum CachedPreview {
@@ -190,7 +178,7 @@ impl<T: Item> FilePicker<T> {
                             }
                             _ => {
                                 // TODO: enable syntax highlighting; blocked by async rendering
-                                Document::open(path, None, None, editor.config.clone())
+                                Document::open(path, None, None)
                                     .map(|doc| CachedPreview::Document(Box::new(doc)))
                                     .unwrap_or(CachedPreview::NotFound)
                             }
@@ -225,9 +213,6 @@ impl<T: Item> FilePicker<T> {
                 let loader = cx.editor.syn_loader.clone();
                 doc.detect_language(loader);
             }
-
-            // QUESTION: do we want to compute inlay hints in pickers too ? Probably not for now
-            // but it could be interesting in the future
         }
 
         EventResult::Consumed(None)
@@ -297,58 +282,43 @@ impl<T: Item + 'static> Component for FilePicker<T> {
                 })
                 .unwrap_or(0);
 
-            let offset = ViewPosition {
-                anchor: doc.text().line_to_char(first_line),
-                horizontal_offset: 0,
-                vertical_offset: 0,
-            };
+            let offset = Position::new(first_line, 0);
 
-            let mut highlights = EditorView::doc_syntax_highlights(
-                doc,
-                offset.anchor,
-                area.height,
-                &cx.editor.theme,
-            );
+            let mut highlights =
+                EditorView::doc_syntax_highlights(doc, offset, area.height, &cx.editor.theme);
             for spans in EditorView::doc_diagnostics_highlights(doc, &cx.editor.theme) {
                 if spans.is_empty() {
                     continue;
                 }
                 highlights = Box::new(helix_core::syntax::merge(highlights, spans));
             }
-            let mut decorations: Vec<Box<dyn LineDecoration>> = Vec::new();
-
-            if let Some((start, end)) = range {
-                let style = cx
-                    .editor
-                    .theme
-                    .try_get("ui.highlight")
-                    .unwrap_or_else(|| cx.editor.theme.get("ui.selection"));
-                let draw_highlight = move |renderer: &mut TextRenderer, pos: LinePos| {
-                    if (start..=end).contains(&pos.doc_line) {
-                        let area = Rect::new(
-                            renderer.viewport.x,
-                            renderer.viewport.y + pos.visual_line,
-                            renderer.viewport.width,
-                            1,
-                        );
-                        renderer.surface.set_style(area, style)
-                    }
-                };
-                decorations.push(Box::new(draw_highlight))
-            }
-
-            render_document(
-                surface,
-                inner,
+            EditorView::render_text_highlights(
                 doc,
                 offset,
-                // TODO: compute text annotations asynchronously here (like inlay hints)
-                &TextAnnotations::default(),
-                highlights,
+                inner,
+                surface,
                 &cx.editor.theme,
-                &mut decorations,
-                &mut [],
+                highlights,
+                &cx.editor.config(),
             );
+
+            // highlight the line
+            if let Some((start, end)) = range {
+                let offset = start.saturating_sub(first_line) as u16;
+                surface.set_style(
+                    Rect::new(
+                        inner.x,
+                        inner.y + offset,
+                        inner.width,
+                        (end.saturating_sub(start) as u16 + 1)
+                            .min(inner.height.saturating_sub(offset)),
+                    ),
+                    cx.editor
+                        .theme
+                        .try_get("ui.highlight")
+                        .unwrap_or_else(|| cx.editor.theme.get("ui.selection")),
+                );
+            }
         }
     }
 
@@ -400,8 +370,6 @@ impl Ord for PickerMatch {
     }
 }
 
-type PickerCallback<T> = Box<dyn Fn(&mut Context, &T, Action)>;
-
 pub struct Picker<T: Item> {
     options: Vec<T>,
     editor_data: T::Data,
@@ -415,15 +383,13 @@ pub struct Picker<T: Item> {
     cursor: usize,
     // pattern: String,
     prompt: Prompt,
-    previous_pattern: (String, FuzzyQuery),
+    previous_pattern: String,
     /// Whether to truncate the start (default true)
     pub truncate_start: bool,
     /// Whether to show the preview panel (default true)
     show_preview: bool,
-    /// Constraints for tabular formatting
-    widths: Vec<Constraint>,
 
-    callback_fn: PickerCallback<T>,
+    callback_fn: Box<dyn Fn(&mut Context, &T, Action)>,
 }
 
 impl<T: Item> Picker<T> {
@@ -442,21 +408,18 @@ impl<T: Item> Picker<T> {
         let mut picker = Self {
             options,
             editor_data,
-            matcher: Box::default(),
+            matcher: Box::new(Matcher::default()),
             matches: Vec::new(),
             cursor: 0,
             prompt,
-            previous_pattern: (String::new(), FuzzyQuery::default()),
+            previous_pattern: String::new(),
             truncate_start: true,
             show_preview: true,
             callback_fn: Box::new(callback_fn),
             completion_height: 0,
-            widths: Vec::new(),
         };
 
-        picker.calculate_column_widths();
-
-        // scoring on empty input
+        // scoring on empty input:
         // TODO: just reuse score()
         picker
             .matches
@@ -472,49 +435,14 @@ impl<T: Item> Picker<T> {
         picker
     }
 
-    pub fn set_options(&mut self, new_options: Vec<T>) {
-        self.options = new_options;
-        self.cursor = 0;
-        self.force_score();
-        self.calculate_column_widths();
-    }
-
-    /// Calculate the width constraints using the maximum widths of each column
-    /// for the current options.
-    fn calculate_column_widths(&mut self) {
-        let n = self
-            .options
-            .first()
-            .map(|option| option.format(&self.editor_data).cells.len())
-            .unwrap_or_default();
-        let max_lens = self.options.iter().fold(vec![0; n], |mut acc, option| {
-            let row = option.format(&self.editor_data);
-            // maintain max for each column
-            for (acc, cell) in acc.iter_mut().zip(row.cells.iter()) {
-                let width = cell.content.width();
-                if width > *acc {
-                    *acc = width;
-                }
-            }
-            acc
-        });
-        self.widths = max_lens
-            .into_iter()
-            .map(|len| Constraint::Length(len as u16))
-            .collect();
-    }
-
     pub fn score(&mut self) {
+        let now = Instant::now();
+
         let pattern = self.prompt.line();
 
-        if pattern == &self.previous_pattern.0 {
+        if pattern == &self.previous_pattern {
             return;
         }
-
-        let (query, is_refined) = self
-            .previous_pattern
-            .1
-            .refine(pattern, &self.previous_pattern.0);
 
         if pattern.is_empty() {
             // Fast path for no pattern.
@@ -528,7 +456,8 @@ impl<T: Item> Picker<T> {
                         len: text.chars().count(),
                     }
                 }));
-        } else if is_refined {
+        } else if pattern.starts_with(&self.previous_pattern) {
+            let query = FuzzyQuery::new(pattern);
             // optimization: if the pattern is a more specific version of the previous one
             // then we can score the filtered set.
             self.matches.retain_mut(|pmatch| {
@@ -550,11 +479,12 @@ impl<T: Item> Picker<T> {
             self.force_score();
         }
 
+        log::debug!("picker score {:?}", Instant::now().duration_since(now));
+
         // reset cursor position
         self.cursor = 0;
         let pattern = self.prompt.line();
-        self.previous_pattern.0.clone_from(pattern);
-        self.previous_pattern.1 = query;
+        self.previous_pattern.clone_from(pattern);
     }
 
     pub fn force_score(&mut self) {
@@ -689,11 +619,6 @@ impl<T: Item + 'static> Component for Picker<T> {
             key!(Esc) | ctrl!('c') => {
                 return close_fn;
             }
-            alt!(Enter) => {
-                if let Some(option) = self.selection() {
-                    (self.callback_fn)(cx, option, Action::Load);
-                }
-            }
             key!(Enter) => {
                 if let Some(option) = self.selection() {
                     (self.callback_fn)(cx, option, Action::Replace);
@@ -726,7 +651,7 @@ impl<T: Item + 'static> Component for Picker<T> {
     fn render(&mut self, area: Rect, surface: &mut Surface, cx: &mut Context) {
         let text_style = cx.editor.theme.get("ui.text");
         let selected = cx.editor.theme.get("ui.text.focus");
-        let highlight_style = cx.editor.theme.get("special").add_modifier(Modifier::BOLD);
+        let highlighted = cx.editor.theme.get("special").add_modifier(Modifier::BOLD);
 
         // -- Render the frame:
         // clear area
@@ -766,127 +691,61 @@ impl<T: Item + 'static> Component for Picker<T> {
         }
 
         // -- Render the contents:
-        // subtract area of prompt from top
-        let inner = inner.clip_top(2);
+        // subtract area of prompt from top and current item marker " > " from left
+        let inner = inner.clip_top(2).clip_left(3);
 
         let rows = inner.height;
         let offset = self.cursor - (self.cursor % std::cmp::max(1, rows as usize));
-        let cursor = self.cursor.saturating_sub(offset);
 
-        let options = self
+        let files = self
             .matches
             .iter()
             .skip(offset)
-            .take(rows as usize)
-            .map(|pmatch| &self.options[pmatch.index])
-            .map(|option| option.format(&self.editor_data))
-            .map(|mut row| {
-                const TEMP_CELL_SEP: &str = " ";
+            .map(|pmatch| (pmatch.index, self.options.get(pmatch.index).unwrap()));
 
-                let line = row.cell_text().fold(String::new(), |mut s, frag| {
-                    s.push_str(&frag);
-                    s.push_str(TEMP_CELL_SEP);
-                    s
-                });
+        for (i, (_index, option)) in files.take(rows as usize).enumerate() {
+            let is_active = i == (self.cursor - offset);
+            if is_active {
+                surface.set_string(
+                    inner.x.saturating_sub(3),
+                    inner.y + i as u16,
+                    " > ",
+                    selected,
+                );
+                surface.set_style(
+                    Rect::new(inner.x, inner.y + i as u16, inner.width, 1),
+                    selected,
+                );
+            }
 
-                // Items are filtered by using the text returned by menu::Item::filter_text
-                // but we do highlighting here using the text in Row and therefore there
-                // might be inconsistencies. This is the best we can do since only the
-                // text in Row is displayed to the end user.
-                let (_score, highlights) = FuzzyQuery::new(self.prompt.line())
-                    .fuzzy_indicies(&line, &self.matcher)
-                    .unwrap_or_default();
+            let spans = option.label(&self.editor_data);
+            let (_score, highlights) = FuzzyQuery::new(self.prompt.line())
+                .fuzzy_indicies(&String::from(&spans), &self.matcher)
+                .unwrap_or_default();
 
-                let highlight_byte_ranges: Vec<_> = line
-                    .char_indices()
-                    .enumerate()
-                    .filter_map(|(char_idx, (byte_offset, ch))| {
-                        highlights
-                            .contains(&char_idx)
-                            .then(|| byte_offset..byte_offset + ch.len_utf8())
-                    })
-                    .collect();
-
-                // The starting byte index of the current (iterating) cell
-                let mut cell_start_byte_offset = 0;
-                for cell in row.cells.iter_mut() {
-                    let spans = match cell.content.lines.get(0) {
-                        Some(s) => s,
-                        None => {
-                            cell_start_byte_offset += TEMP_CELL_SEP.len();
-                            continue;
-                        }
-                    };
-
-                    let mut cell_len = 0;
-
-                    let graphemes_with_style: Vec<_> = spans
-                        .0
-                        .iter()
-                        .flat_map(|span| {
-                            span.content
-                                .grapheme_indices(true)
-                                .zip(std::iter::repeat(span.style))
-                        })
-                        .map(|((grapheme_byte_offset, grapheme), style)| {
-                            cell_len += grapheme.len();
-                            let start = cell_start_byte_offset;
-
-                            let grapheme_byte_range =
-                                grapheme_byte_offset..grapheme_byte_offset + grapheme.len();
-
-                            if highlight_byte_ranges.iter().any(|hl_rng| {
-                                hl_rng.start >= start + grapheme_byte_range.start
-                                    && hl_rng.end <= start + grapheme_byte_range.end
-                            }) {
-                                (grapheme, style.patch(highlight_style))
+            spans.0.into_iter().fold(inner, |pos, span| {
+                let new_x = surface
+                    .set_string_truncated(
+                        pos.x,
+                        pos.y + i as u16,
+                        &span.content,
+                        pos.width as usize,
+                        |idx| {
+                            if highlights.contains(&idx) {
+                                highlighted.patch(span.style)
+                            } else if is_active {
+                                selected.patch(span.style)
                             } else {
-                                (grapheme, style)
+                                text_style.patch(span.style)
                             }
-                        })
-                        .collect();
-
-                    let mut span_list: Vec<(String, Style)> = Vec::new();
-                    for (grapheme, style) in graphemes_with_style {
-                        if span_list.last().map(|(_, sty)| sty) == Some(&style) {
-                            let (string, _) = span_list.last_mut().unwrap();
-                            string.push_str(grapheme);
-                        } else {
-                            span_list.push((String::from(grapheme), style))
-                        }
-                    }
-
-                    let spans: Vec<Span> = span_list
-                        .into_iter()
-                        .map(|(string, style)| Span::styled(string, style))
-                        .collect();
-                    let spans: Spans = spans.into();
-                    *cell = Cell::from(spans);
-
-                    cell_start_byte_offset += cell_len + TEMP_CELL_SEP.len();
-                }
-
-                row
+                        },
+                        true,
+                        self.truncate_start,
+                    )
+                    .0;
+                pos.clip_left(new_x - pos.x)
             });
-
-        let table = Table::new(options)
-            .style(text_style)
-            .highlight_style(selected)
-            .highlight_symbol(" > ")
-            .column_spacing(1)
-            .widths(&self.widths);
-
-        use tui::widgets::TableState;
-
-        table.render_table(
-            inner,
-            surface,
-            &mut TableState {
-                offset: 0,
-                selected: Some(cursor),
-            },
-            self.truncate_start,
-        );
+        }
     }
 
     fn cursor(&self, area: Rect, editor: &Editor) -> (Option<Position>, CursorKind) {
@@ -953,7 +812,9 @@ impl<T: Item + Send + 'static> Component for DynamicPicker<T> {
                         Some(overlay) => &mut overlay.content.file_picker.picker,
                         None => return,
                     };
-                    picker.set_options(new_options);
+                    picker.options = new_options;
+                    picker.cursor = 0;
+                    picker.force_score();
                     editor.reset_idle_timer();
                 }));
             anyhow::Ok(callback)

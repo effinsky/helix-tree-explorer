@@ -237,8 +237,8 @@ impl Rect {
         Rect {
             x: x1,
             y: y1,
-            width: x2.saturating_sub(x1),
-            height: y2.saturating_sub(y1),
+            width: x2 - x1,
+            height: y2 - y1,
         }
     }
 
@@ -248,37 +248,10 @@ impl Rect {
             && self.y < other.y + other.height
             && self.y + self.height > other.y
     }
-
-    /// Returns a smaller `Rect` with a margin of 5% on each side, and an additional 2 rows at the bottom
-    pub fn overlayed(self) -> Rect {
-        self.clip_bottom(2).clip_relative(90, 90)
-    }
-
-    /// Returns a smaller `Rect` with width and height clipped to the given `percent_horizontal`
-    /// and `percent_vertical`.
-    ///
-    /// Value of `percent_horizontal` and `percent_vertical` is from 0 to 100.
-    pub fn clip_relative(self, percent_horizontal: u8, percent_vertical: u8) -> Rect {
-        fn mul_and_cast(size: u16, factor: u8) -> u16 {
-            ((size as u32) * (factor as u32) / 100).try_into().unwrap()
-        }
-
-        let inner_w = mul_and_cast(self.width, percent_horizontal);
-        let inner_h = mul_and_cast(self.height, percent_vertical);
-
-        let offset_x = self.width.saturating_sub(inner_w) / 2;
-        let offset_y = self.height.saturating_sub(inner_h) / 2;
-
-        Rect {
-            x: self.x + offset_x,
-            y: self.y + offset_y,
-            width: inner_w,
-            height: inner_h,
-        }
-    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub enum Color {
     Reset,
     Black,
@@ -380,7 +353,7 @@ bitflags! {
     ///
     /// let m = Modifier::BOLD | Modifier::ITALIC;
     /// ```
-    #[derive(PartialEq, Eq, Debug, Clone, Copy)]
+    #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
     pub struct Modifier: u16 {
         const BOLD              = 0b0000_0000_0001;
         const DIM               = 0b0000_0000_0010;
@@ -477,6 +450,7 @@ impl FromStr for Modifier {
 /// );
 /// ```
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct Style {
     pub fg: Option<Color>,
     pub bg: Option<Color>,

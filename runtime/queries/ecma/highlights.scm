@@ -167,76 +167,55 @@
 ]  @punctuation.bracket
 
 [
+  "as"
   "async"
   "debugger"
   "delete"
   "extends"
   "from"
+  "function"
   "get"
-  "new"
-  "set"
-  "target"
-  "typeof"
+  "in"
   "instanceof"
+  "new"
+  "of"
+  "set"
+  "static"
+  "target"
+  "try"
+  "typeof"
   "void"
   "with"
 ] @keyword
 
 [
-  "of"
-  "as"
-  "in"
-] @keyword.operator
-
-[
-  "function"
-] @keyword.function
-
-[
   "class"
   "let"
+  "const"
   "var"
 ] @keyword.storage.type
 
 [
-  "const"
-  "static"
-] @keyword.storage.modifier
-
-[
+  "switch"
+  "case"
   "default"
+  "if"
+  "else"
   "yield"
+  "throw"
   "finally"
+  "return"
+  "catch"
+  "continue"
+  "while"
+  "break"
+  "for"
   "do"
   "await"
 ] @keyword.control
 
 [
-  "if"
-  "else"
-  "switch"
-  "case"
-  "while"
-] @keyword.control.conditional
-
-[
-  "for"
-] @keyword.control.repeat
-
-[
   "import"
   "export"
 ] @keyword.control.import 
-
-[
-  "return"
-  "break"
-  "continue"
-] @keyword.control.return
-
-[
-  "throw"
-  "try"
-  "catch"
-] @keyword.control.exception
 
