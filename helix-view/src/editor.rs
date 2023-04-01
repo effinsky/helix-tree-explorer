@@ -211,6 +211,70 @@ impl Default for FilePickerConfig {
     }
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "kebab-case")]
+pub enum ExplorerStyle {
+    Tree,
+    List,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "kebab-case")]
+pub enum ExplorerPosition {
+    Embed,
+    Overlay,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "kebab-case", default, deny_unknown_fields)]
+pub struct ExplorerConfig {
+    pub style: ExplorerStyle,
+    pub position: ExplorerPosition,
+    /// explorer column width
+    pub column_width: usize,
+}
+
+impl ExplorerConfig {
+    pub fn is_embed(&self) -> bool {
+        match self.position {
+            ExplorerPosition::Embed => true,
+            ExplorerPosition::Overlay => false,
+        }
+    }
+
+    pub fn is_overlay(&self) -> bool {
+        match self.position {
+            ExplorerPosition::Embed => false,
+            ExplorerPosition::Overlay => true,
+        }
+    }
+
+    pub fn is_list(&self) -> bool {
+        match self.style {
+            ExplorerStyle::List => true,
+            ExplorerStyle::Tree => false,
+        }
+    }
+
+    pub fn is_tree(&self) -> bool {
+        match self.style {
+            ExplorerStyle::List => false,
+            ExplorerStyle::Tree => true,
+        }
+    }
+}
+
+impl Default for ExplorerConfig {
+    fn default() -> Self {
+        Self {
+            style: ExplorerStyle::Tree,
+            position: ExplorerPosition::Embed,
+            column_width: 30,
+        }
+    }
+}
+impl Eq for ExplorerConfig  {}
+
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "kebab-case", default, deny_unknown_fields)]
 pub struct ExplorerConfig {
