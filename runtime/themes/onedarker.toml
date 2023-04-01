@@ -31,6 +31,7 @@
 "markup.raw.block" = { fg = "white" }
 "markup.bold" = { fg = "gold", modifiers = ["bold"] }
 "markup.italic" = { fg = "purple", modifiers = ["italic"] }
+"markup.strikethrough" = { modifiers = ["crossed_out"] }
 "markup.list" = { fg = "red" }
 "markup.quote" = { fg = "yellow" }
 "markup.link.url" = { fg = "blue", modifiers = ["underlined"]}
@@ -77,6 +78,8 @@
 "ui.text.focus" = { fg = "white", bg = "light-black", modifiers = ["bold"] }
 
 "ui.help" = { fg = "white", bg = "gray" }
+"ui.debug" = { fg = "red" }
+"ui.highlight.frameline" = { bg = "#97202a" }
 "ui.popup" = { bg = "gray" }
 "ui.window" = { fg = "gray" }
 "ui.menu" = { fg = "white", bg = "gray" }
